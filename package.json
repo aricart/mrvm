@@ -1,6 +1,6 @@
 {
   "name": "@aricart/mrvm",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "monorepo version manager: check, fix and bump versions across a deno/npm workspace",
   "type": "module",
   "bin": {
