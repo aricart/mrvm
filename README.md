@@ -3,8 +3,8 @@
 A monorepo version manager. `mrvm` keeps the versions of a Deno/npm workspace
 consistent, and bumps them:
 
-- each module's version agrees across its `deno.json`, `package.json` and
-  `src/version.ts`;
+- each module's version agrees across its `deno.json`, `package.json`,
+  `src/version.ts` and `package-lock.json`;
 - every pin on a module (`jsr:` and `npm:` imports in `deno.json` and
   `import_map.json`, and `package.json` dependencies) is at that version;
 - bumps by release type, or suggested from the conventional commits since the
@@ -110,6 +110,18 @@ they change:
 - a commit that isn't a conventional commit but changes published files counts
   as a patch, and is marked in the output;
 - below 1.0, a breaking change is a minor bump and a feature a patch.
+
+### package-lock.json
+
+npm keeps a copy of the package's version in `package-lock.json` (at
+`version` and `packages[""]`, or `packages["<dir>"]` for each member of a
+workspace), and of each package's dependency ranges. mrvm checks and updates
+those copies with the manifests, so `npm ci` and `npm install` don't rewrite
+the lock after a bump. They never decide a module's version: `fix` brings the
+lock to the manifests, not the other way around.
+
+Files git ignores (a lock that isn't committed, say) aren't part of the
+workspace.
 
 ### version.ts
 

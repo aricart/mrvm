@@ -4,6 +4,7 @@
 import { join } from "node:path";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { findString, type StringSpan, stringSpans } from "./jsonedit.ts";
+import { ignored } from "./git.ts";
 import { compare, format, max, parse, type SemVer } from "./semver.ts";
 
 /**
@@ -27,7 +28,12 @@ export interface Config {
   align?: string[];
 }
 
-export type FileKind = "deno" | "package" | "import_map" | "version_ts";
+export type FileKind =
+  | "deno"
+  | "package"
+  | "import_map"
+  | "version_ts"
+  | "lock";
 
 /**
  * A file mrvm reads and may edit.
@@ -49,6 +55,11 @@ export interface VersionSite {
   /** the json path, or ["version"] for a version.ts */
   path: string[];
   value: string;
+  /**
+   * a copy of the version kept by a tool (package-lock.json): it's checked
+   * and updated with the others, but doesn't decide the module's version
+   */
+  derived?: boolean;
 }
 
 /**
@@ -282,12 +293,35 @@ export function modelFrom(
       if (m) sites.push({ file: vts.path, path: ["version"], value: m[3] });
       else problems.push(`${vts.path}: no "export const version = ..." found`);
     }
+    // package-lock.json keeps a copy: the root package's own lock has it at
+    // "version" and packages[""], a workspace lock has each member at
+    // packages["<dir>"]
+    for (const lock of files.values()) {
+      if (lock.kind !== "lock") continue;
+      const lockDir = lock.path.includes("/")
+        ? lock.path.slice(0, lock.path.lastIndexOf("/"))
+        : "";
+      const paths: string[][] = [];
+      if (lockDir === dir) {
+        const name = findString(lock.spans, ["name"]);
+        if (name && names.includes(name.value)) paths.push(["version"]);
+        paths.push(["packages", "", "version"]);
+      } else if (lockDir === "" && dir) {
+        paths.push(["packages", dir, "version"]);
+      }
+      for (const path of paths) {
+        const v = findString(lock.spans, path);
+        if (v) {
+          sites.push({ file: lock.path, path, value: v.value, derived: true });
+        }
+      }
+    }
     const versions: SemVer[] = [];
     for (const s of sites) {
       const v = parse(s.value);
       if (!v) {
         problems.push(`${s.file}: version "${s.value}" is not valid semver`);
-      } else {
+      } else if (!s.derived) {
         versions.push(v);
       }
     }
@@ -332,6 +366,12 @@ export function modelFrom(
         DEP_SECTIONS.includes(s.path[0])
       ) {
         p = parsePin(s.value, "package", s.path[1]);
+      } else if (
+        // package-lock.json mirrors each package's dependency ranges
+        f.kind === "lock" && s.path.length === 4 && s.path[0] === "packages" &&
+        !s.path[1].includes("node_modules") && DEP_SECTIONS.includes(s.path[2])
+      ) {
+        p = parsePin(s.value, "package", s.path[3]);
       }
       if (p && (owner.has(p.dep) || config.align?.includes(p.dep))) {
         pins.push({ file: f.path, path: s.path, ...p });
@@ -366,6 +406,7 @@ export function loadWorkspace(root: string): Workspace {
       ["deno.jsonc", "deno"],
       ["package.json", "package"],
       ["import_map.json", "import_map"],
+      ["package-lock.json", "lock"],
       ["src/version.ts", "version_ts"],
     ];
     for (const [name, kind] of kinds) {
@@ -373,6 +414,9 @@ export function loadWorkspace(root: string): Workspace {
       if (f) files.set(f.path, f);
     }
   }
+  // files git ignores (a local package-lock.json, say) aren't part of the
+  // workspace
+  for (const p of ignored(root, [...files.keys()])) files.delete(p);
   return modelFrom(root, config, files);
 }
 
@@ -398,7 +442,7 @@ export function dependents(ws: Workspace, m: Module): Module[] {
   return ws.modules.filter((o) =>
     o !== m &&
     ws.pins.some((p) =>
-      m.names.includes(p.dep) && fileDir(p.file) === o.dir
+      !isLock(p.file) && m.names.includes(p.dep) && fileDir(p.file) === o.dir
     )
   );
 }
@@ -413,4 +457,12 @@ export function fileDir(file: string): string {
 
 export function versionString(v: SemVer): string {
   return format(v);
+}
+
+/**
+ * Whether a file is a package-lock.json, whose pins mirror the manifests and
+ * so don't add dependencies of their own.
+ */
+export function isLock(file: string): boolean {
+  return file === "package-lock.json" || file.endsWith("/package-lock.json");
 }

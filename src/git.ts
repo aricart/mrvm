@@ -110,3 +110,23 @@ export function remoteTags(root: string, remote = "origin"): string[] | null {
     return null;
   }
 }
+
+/**
+ * The paths among `paths` that git ignores; empty outside a repository.
+ */
+export function ignored(root: string, paths: string[]): Set<string> {
+  if (!paths.length || !isRepo(root)) return new Set();
+  try {
+    const out = execFileSync("git", ["check-ignore", "--stdin"], {
+      cwd: root,
+      encoding: "utf8",
+      input: paths.join("\n"),
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    return new Set(out.split("\n").filter((l) => l));
+  } catch (err) {
+    // exit status 1: none of the paths are ignored
+    if ((err as { status?: number }).status === 1) return new Set();
+    throw err;
+  }
+}
