@@ -3,7 +3,7 @@
 
 import { cli, type Command, type Flags } from "@aricart/cobra";
 import { resolve } from "node:path";
-import { bump, check, fix, type Io, ls } from "./commands.ts";
+import { bump, check, fix, type Io, ls, suggestCmd } from "./commands.ts";
 import { type ReleaseType, releaseTypes } from "./semver.ts";
 
 function io(cmd: Command): Io {
@@ -158,6 +158,30 @@ bumpCmd.addFlag({
   name: "offline",
   type: "boolean",
   usage: "don't check jsr and npm for an already published version",
+});
+
+const suggestCommand = root.addCommand({
+  use: "suggest [module...]",
+  short: "shows the bumps the commits since the last release call for",
+  long:
+    `Shows the bump each module needs from the conventional commits since its
+last release tag, the commits behind it, and the versions it leads to. It
+writes nothing: mrvm bump --suggest applies it.`,
+  run: (cmd, args, flags) => {
+    const c = common(flags);
+    return Promise.resolve(
+      suggestCmd(c.root, {
+        ...c,
+        only: args,
+        preid: flags.value<string>("preid") || undefined,
+      }, io(cmd)),
+    );
+  },
+});
+suggestCommand.addFlag({
+  name: "preid",
+  type: "string",
+  usage: "prerelease identifier, e.g. rc for 1.2.0-rc.0",
 });
 
 const lsCmd = root.addCommand({

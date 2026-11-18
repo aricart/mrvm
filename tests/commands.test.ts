@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { bump, check, fix, ls } from "../src/commands.ts";
+import { bump, check, fix, ls, suggestCmd } from "../src/commands.ts";
 import {
   capture,
   commit,
@@ -298,4 +298,38 @@ test("ls - versions from tags", async () => {
   const io = capture();
   assert.equal(await ls(root, { quiet: true }, io), 0);
   assert.match(io.stdout, /1\.0\.0\s+tag v1\.0\.0[\s\S]*0\.9\.0\s+tag v0\.9\.0/);
+});
+
+test("fix - version.ts spelled Version, with a type and single quotes", () => {
+  const root = workspace({
+    "deno.json": { name: "@x/jwt", version: "0.2.0" },
+    "src/version.ts": `// generated\nexport const Version: string = '0.1.0';\n`,
+  });
+  const io = capture();
+  assert.equal(check(root, {}, io), 1);
+  assert.match(io.stdout, /src\/version\.ts\s+version\s+0\.1\.0 → 0\.2\.0/);
+  assert.equal(fix(root, {}, capture()), 0);
+  assert.equal(read(root, "src/version.ts"), `// generated\nexport const Version: string = '0.2.0';\n`);
+});
+
+test("check - a version.ts without a version is reported", () => {
+  const root = workspace({
+    "deno.json": { name: "@x/a", version: "1.0.0" },
+    "src/version.ts": `export const v = 1;\n`,
+  });
+  const io = capture();
+  assert.equal(check(root, {}, io), 1);
+  assert.match(io.stderr, /src\/version\.ts: no "export const version/);
+});
+
+test("suggest - shows the bump and writes nothing", () => {
+  const root = repo(workspace(natsLike("1.0.0")));
+  git(root, "tag", "v1.0.0");
+  commit(root, "feat(kv): a feature", { "kv/src/kv.ts": "1" });
+  const before = read(root, "kv/deno.json");
+  const io = capture();
+  assert.equal(suggestCmd(root, {}, io), 0);
+  assert.match(io.stdout, /@x\/kv 1\.0\.0: minor, 1 commit since v1\.0\.0/);
+  assert.match(io.stdout, /lockstep, mrvm bump --suggest would make:[\s\S]*1\.0\.0 → 1\.1\.0/);
+  assert.equal(read(root, "kv/deno.json"), before);
 });

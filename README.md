@@ -40,7 +40,8 @@ to check jsr and npm (which `--offline` skips).
 mrvm check                     checks versions and pins; exits 1 when inconsistent
 mrvm fix [--dry-run]           makes versions and pins consistent
 mrvm bump <type> [module...]   bumps by release type
-mrvm bump --suggest [module...]  bumps from the commits since the last release
+mrvm suggest [module...]       shows the bumps the commits call for; writes nothing
+mrvm bump --suggest [module...]  applies them
 mrvm ls [module...] [-r]       released versions: git tags, and jsr/npm with -r
 ```
 
@@ -85,7 +86,8 @@ version, and independent otherwise. Set the mode to be explicit:
 
 ### Suggested bumps
 
-`bump --suggest` reads the commits since each module's last release tag
+`mrvm suggest` shows, and `bump --suggest` applies, a bump worked out from the
+commits since each module's last release tag
 (`v1.2.3`, or `<dir>/v1.2.3` for modules released separately) and the files
 they change:
 
@@ -96,6 +98,27 @@ they change:
 - a commit that isn't a conventional commit but changes published files counts
   as a patch, and is marked in the output;
 - below 1.0, a breaking change is a minor bump and a feature a patch.
+
+### version.ts
+
+Code can't reliably read its own `package.json` or `deno.json` once it's
+published (a JSR package has no package.json, a bundle has neither), so
+libraries that need their version at runtime, for example to report it to a
+server, keep it in a source file. mrvm treats `src/version.ts` in a module's
+directory (or at the root, for a single-package repository) as one more place
+the module's version is written:
+
+```ts
+// This file is generated - do not edit
+export const version = "1.2.3";
+```
+
+- `check` reports it when it doesn't match the module's `deno.json` and
+  `package.json`, and `fix` and `bump` update it with them.
+- The name can be `version`, `Version` or `VERSION`, with an optional
+  `: string` type and either quote style; only the version string is replaced.
+- mrvm doesn't create the file. If a module has a `src/version.ts` without a
+  version in it, that's reported as a problem rather than skipped.
 
 ### Configuration
 

@@ -109,7 +109,9 @@ const DEP_SECTIONS = [
 const IMPORT_RE = /^(jsr:|npm:)(@[^/@]+\/[^/@]+|[^/@]+)@([\^~]?)([^/]+)(\/.*)?$/;
 // ^1.2.3, ~1.2.3, 1.2.3, or an alias npm:name@^1.2.3
 const PKG_RE = /^(npm:(@[^/@]+\/[^/@]+|[^/@]+)@)?([\^~]?)([0-9][^\s]*)$/;
-const VERSION_TS_RE = /export const version\s*=\s*"([^"]+)"/;
+// export const version = "1.2.3" (or Version, VERSION, with ' or ")
+export const VERSION_TS_RE =
+  /(export\s+const\s+(?:version|Version|VERSION)\s*(?::\s*string\s*)?=\s*)(["'])([^"']+)\2/;
 
 function readText(root: string, path: string): string | undefined {
   const p = join(root, path);
@@ -277,7 +279,8 @@ export function modelFrom(
     if (!sites.length) continue;
     if (vts) {
       const m = VERSION_TS_RE.exec(vts.text);
-      if (m) sites.push({ file: vts.path, path: ["version"], value: m[1] });
+      if (m) sites.push({ file: vts.path, path: ["version"], value: m[3] });
+      else problems.push(`${vts.path}: no "export const version = ..." found`);
     }
     const versions: SemVer[] = [];
     for (const s of sites) {

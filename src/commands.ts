@@ -422,3 +422,91 @@ function compareStrings(a: string, b: string): number {
 
 export { modeOf };
 export type { Module };
+
+export interface SuggestOptions extends CommonOptions {
+  /** prerelease identifier for the suggested versions */
+  preid?: string;
+  only?: string[];
+}
+
+/**
+ * Shows the bump each module needs from the commits since its last release
+ * tag, and the versions that leads to. Writes nothing; `bump --suggest`
+ * applies it.
+ */
+export function suggestCmd(
+  root: string,
+  opts: SuggestOptions,
+  io: Io,
+): number {
+  const ws = load(root, io);
+  if (!ws) return 1;
+  if (!isRepo(ws.root)) return fail(io, opts, ["suggest needs a git repository"]);
+  const problems = validate(ws);
+  if (problems.length) return fail(io, opts, problems);
+  const plan = planBump(ws, {
+    suggest: true,
+    preid: opts.preid,
+    only: opts.only,
+  });
+  if (plan.problems.length) return fail(io, opts, plan.problems);
+  const suggestions = plan.suggestions ?? [];
+  if (opts.json) {
+    io.out(
+      JSON.stringify(
+        {
+          mode: plan.mode,
+          modules: suggestions.map((s) => ({
+            module: s.module.name,
+            version: format(s.module.version),
+            tag: s.tag ?? null,
+            level: s.level,
+            to: plan.targets.has(s.module)
+              ? format(plan.targets.get(s.module)!)
+              : null,
+            commits: s.commits.map((c) => ({
+              hash: c.commit.hash,
+              subject: c.commit.subject,
+              level: c.level,
+              conventional: c.conventional,
+            })),
+          })),
+          bumps: [...plan.targets].map(([m, t]) => ({
+            module: m.name,
+            from: format(m.version),
+            to: format(t),
+            reason: plan.reasons.get(m),
+          })),
+        },
+        null,
+        2,
+      ) + "\n",
+    );
+    return 0;
+  }
+  for (const s of suggestions) {
+    io.out(
+      `${s.module.name} ${format(s.module.version)}: ${s.level}, ${
+        plural(s.commits.length, "commit")
+      } since ${s.tag ?? "the first commit"}\n`,
+    );
+    for (const c of s.commits) {
+      io.out(
+        `    ${c.level.padEnd(5)} ${c.commit.hash.slice(0, 8)} ${c.commit.subject}${
+          c.conventional ? "" : "  (not a conventional commit)"
+        }\n`,
+      );
+    }
+  }
+  if (!plan.targets.size) {
+    io.out("\nnothing to bump\n");
+    return 0;
+  }
+  io.out(`\n${plan.mode}, mrvm bump --suggest would make:\n`);
+  for (const [m, t] of plan.targets) {
+    io.out(
+      `  ${m.name}  ${format(m.version)} → ${format(t)}  ${plan.reasons.get(m) ?? ""}\n`,
+    );
+  }
+  return 0;
+}

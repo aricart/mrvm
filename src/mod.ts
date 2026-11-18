@@ -2,17 +2,19 @@
  * mrvm: monorepo version manager. Checks, fixes and bumps the versions of a
  * deno/npm workspace, and the pins between its modules.
  *
- * Run it with `deno run -A jsr:@aricart/mrvm/cli` or `npx @aricart/mrvm`.
+ * Run it with `npx @aricart/mrvm`, `bunx @aricart/mrvm` or
+ * `deno run -A npm:@aricart/mrvm`.
  * This module exposes the same operations as functions.
  *
  * @module
  */
 
-export { bump, check, fix, type Io, ls } from "./commands.ts";
+export { bump, check, fix, type Io, ls, suggestCmd } from "./commands.ts";
 export type {
   BumpCliOptions,
   CommonOptions,
   LsOptions,
+  SuggestOptions,
   WriteOptions,
 } from "./commands.ts";
 export { type BumpOptions, type BumpPlan, type Mode, modeOf, planBump } from "./bump.ts";

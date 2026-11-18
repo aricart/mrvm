@@ -8,6 +8,7 @@ import { compare, format, max, mustParse, parse, type SemVer } from "./semver.ts
 import {
   fileDir,
   modelFrom,
+  VERSION_TS_RE,
   moduleOf,
   type Module,
   type Workspace,
@@ -108,8 +109,8 @@ export function applyInMemory(
     let text: string;
     if (f.kind === "version_ts") {
       text = f.text.replace(
-        /(export const version\s*=\s*)"[^"]+"/,
-        `$1${JSON.stringify(cs[0].to)}`,
+        VERSION_TS_RE,
+        (_m, head: string, q: string) => `${head}${q}${cs[0].to}${q}`,
       );
     } else {
       text = applyEdits(
