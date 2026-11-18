@@ -1,0 +1,55 @@
+{
+  "name": "@aricart/mrvm",
+  "version": "0.1.0-0",
+  "description": "monorepo version manager: check, fix and bump versions across a deno/npm workspace",
+  "type": "module",
+  "bin": {
+    "mrvm": "lib/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./lib/mod.d.ts",
+      "default": "./lib/mod.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "types": "./lib/mod.d.ts",
+  "files": [
+    "lib/",
+    "LICENSE",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">= 22"
+  },
+  "scripts": {
+    "clean": "node -e \"require('fs').rmSync('lib', { recursive: true, force: true })\"",
+    "build": "npm run clean && tsc",
+    "check": "tsc --noEmit",
+    "test": "node --test tests/*.test.ts",
+    "prepack": "npm run build"
+  },
+  "keywords": [
+    "monorepo",
+    "workspace",
+    "version",
+    "semver",
+    "jsr",
+    "npm",
+    "deno",
+    "conventional-commits"
+  ],
+  "author": "Alberto Ricart",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aricart/mrvm.git"
+  },
+  "dependencies": {
+    "@aricart/cobra": "^0.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.2"
+  }
+}

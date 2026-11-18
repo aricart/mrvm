@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - "*"
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        node-version: [22.x, 24.x, 26.x]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: npm install
+      - run: npm run check
+      - run: npm test
+      - run: npm run build
+      - name: Runs on its own repository
+        run: node lib/cli.js check
+
+  runtimes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 26.x
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: 2.9.x
+      - uses: oven-sh/setup-bun@v2
+      - run: npm install && npm run build
+      - run: deno run -A lib/cli.js check
+      - run: bun lib/cli.js check
