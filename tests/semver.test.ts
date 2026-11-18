@@ -50,3 +50,12 @@ test("semver - increments like npm version", () => {
   assert.equal(inc("1.3.0-beta.2", "prerelease", "rc"), "1.3.0-rc.0");
   assert.equal(inc("1.3.0-rc.2", "release"), "1.3.0");
 });
+
+// checked against npm's semver 7.8.6; @std/semver gives 3.0.0-rc.2 for the
+// first, keeping the old prerelease counter, and has no "release"
+test("semver - pre* from a prerelease start the counter over, like npm", () => {
+  assert.equal(inc("2.0.0-rc.1", "premajor", "rc"), "3.0.0-rc.0");
+  assert.equal(inc("1.3.0-rc.4", "preminor", "rc"), "1.4.0-rc.0");
+  assert.equal(inc("1.2.4-3", "prepatch"), "1.2.5-0");
+  assert.equal(inc("2.0.0-1", "major"), "2.0.0");
+});
