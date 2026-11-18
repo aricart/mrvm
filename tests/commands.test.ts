@@ -29,6 +29,7 @@ test("check - reports own versions, version.ts and pins out of step", () => {
   const root = workspace(files);
   const io = capture();
   assert.equal(check(root, {}, io), 1);
+  assert.match(io.stdout, /^\d+ inconsistencies \(fix would make these edits\)/);
   for (
     const re of [
       /core\/deno\.json\s+version\s+1\.0\.0 → 1\.1\.0/,

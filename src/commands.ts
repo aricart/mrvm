@@ -46,7 +46,8 @@ function changesJson(changes: Change[]) {
 }
 
 function plural(n: number, word: string): string {
-  return `${n} ${word}${n === 1 ? "" : "s"}`;
+  if (n === 1) return `${n} ${word}`;
+  return word.endsWith("y") ? `${n} ${word.slice(0, -1)}ies` : `${n} ${word}s`;
 }
 
 function load(root: string, io: Io): Workspace | null {
