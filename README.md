@@ -34,6 +34,18 @@ bunx @aricart/mrvm check
 It needs `git` on the PATH for `bump --suggest` and `ls`, and network access
 to check jsr and npm (which `--offline` skips).
 
+Deno won't install npm versions published in the last 24 hours (its
+minimum dependency age). To run a release as soon as it's out, exclude mrvm in
+the `deno.json` of the directory you run it from:
+
+```json
+{
+  "minimumDependencyAge": { "exclude": ["npm:@aricart/*"] }
+}
+```
+
+or pass `--minimum-dependency-age=0` to `deno run`.
+
 ## Commands
 
 ```
