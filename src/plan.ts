@@ -7,6 +7,7 @@ import { applyEdits, findString, stringSpans } from "./jsonedit.ts";
 import { compare, format, max, mustParse, parse, type SemVer } from "./semver.ts";
 import {
   fileDir,
+  isLock,
   modelFrom,
   VERSION_TS_RE,
   moduleOf,
@@ -150,6 +151,7 @@ export function validate(ws: Workspace): string[] {
   const deps = new Map<Module, Set<Module>>();
   for (const m of ws.modules) deps.set(m, new Set());
   for (const p of ws.pins) {
+    if (isLock(p.file)) continue;
     const target = moduleOf(ws, p.dep);
     const owner = ws.modules.find((m) => m.dir === fileDir(p.file));
     if (target && owner && target !== owner) deps.get(owner)!.add(target);
@@ -221,8 +223,18 @@ export function write(ws: Workspace, files: Map<string, WorkspaceFile>) {
  * Formats changes as aligned lines: file, field, from → to.
  */
 export function formatChanges(changes: Change[]): string {
+  // imports[@x/kv], packages[""].version, packages[kv].dependencies[@x/core]
+  const KEYS = new Set([
+    "version",
+    "dependencies",
+    "devDependencies",
+    "peerDependencies",
+    "optionalDependencies",
+  ]);
   const field = (c: Change) =>
-    c.path.length === 1 ? c.path[0] : `${c.path[0]}[${c.path.slice(1).join(".")}]`;
+    c.path[0] + c.path.slice(1).map((p) =>
+      KEYS.has(p) ? `.${p}` : `[${p === "" ? '""' : p}]`
+    ).join("");
   const rows = changes.map((c) => [c.file, field(c), `${c.from} → ${c.to}`]);
   const w0 = Math.max(0, ...rows.map((r) => r[0].length));
   const w1 = Math.max(0, ...rows.map((r) => r[1].length));

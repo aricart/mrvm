@@ -334,3 +334,99 @@ test("suggest - shows the bump and writes nothing", () => {
   assert.match(io.stdout, /lockstep, mrvm bump --suggest would make:[\s\S]*1\.0\.0 → 1\.1\.0/);
   assert.equal(read(root, "kv/deno.json"), before);
 });
+
+// npm keeps the package's version in package-lock.json too; a bump that
+// leaves it behind makes `npm ci`/`npm install` rewrite it in ci
+function lockFor(name: string, version: string, extra: Record<string, unknown> = {}) {
+  return {
+    name,
+    version,
+    lockfileVersion: 3,
+    requires: true,
+    packages: {
+      "": { name, version, license: "MIT" },
+      "node_modules/left-pad": { version: "1.3.0" },
+      ...extra,
+    },
+  };
+}
+
+test("bump - updates the versions in package-lock.json", async () => {
+  const root = workspace({
+    "package.json": { name: "@x/one", version: "0.1.0-0" },
+    "deno.json": { name: "@x/one", version: "0.1.0-0" },
+    "package-lock.json": lockFor("@x/one", "0.1.0-0"),
+  });
+  const io = capture();
+  assert.equal(await bump(root, { type: "prerelease", ...offline }, io), 0);
+  const lock = json(root, "package-lock.json");
+  assert.equal(lock.version, "0.1.0-1");
+  assert.equal(lock.packages[""].version, "0.1.0-1");
+  // other packages in the lock are left alone
+  assert.equal(lock.packages["node_modules/left-pad"].version, "1.3.0");
+  assert.equal(check(root, {}, capture()), 0);
+});
+
+test("check - a stale package-lock.json version is reported", () => {
+  const root = workspace({
+    "package.json": { name: "@x/one", version: "1.0.1" },
+    "package-lock.json": lockFor("@x/one", "1.0.0"),
+  });
+  const io = capture();
+  assert.equal(check(root, {}, io), 1);
+  assert.match(io.stdout, /package-lock\.json\s+version\s+1\.0\.0 → 1\.0\.1/);
+  assert.match(io.stdout, /package-lock\.json\s+packages\[""\]\.version\s+1\.0\.0 → 1\.0\.1/);
+});
+
+test("fix - the lock doesn't decide the version", () => {
+  const root = workspace({
+    "package.json": { name: "@x/one", version: "1.0.0" },
+    "package-lock.json": lockFor("@x/one", "9.9.9"),
+  });
+  assert.equal(fix(root, {}, capture()), 0);
+  assert.equal(json(root, "package.json").version, "1.0.0");
+  assert.equal(json(root, "package-lock.json").version, "1.0.0");
+});
+
+test("bump - a workspace lock's members and their pins follow", async () => {
+  const root = workspace({
+    "package.json": { workspaces: ["core", "kv"] },
+    "core/package.json": { name: "@x/core", version: "1.0.0" },
+    "kv/package.json": {
+      name: "@x/kv",
+      version: "1.0.0",
+      dependencies: { "@x/core": "1.0.0" },
+    },
+    "package-lock.json": {
+      lockfileVersion: 3,
+      packages: {
+        "": { workspaces: ["core", "kv"] },
+        "core": { name: "@x/core", version: "1.0.0" },
+        "kv": {
+          name: "@x/kv",
+          version: "1.0.0",
+          dependencies: { "@x/core": "1.0.0" },
+        },
+        "node_modules/@x/core": { resolved: "core", link: true },
+        "node_modules/@x/kv": { resolved: "kv", link: true },
+      },
+    },
+  });
+  assert.equal(check(root, {}, capture()), 0);
+  assert.equal(await bump(root, { type: "minor", ...offline }, capture()), 0);
+  const lock = json(root, "package-lock.json");
+  assert.equal(lock.packages.core.version, "1.1.0");
+  assert.equal(lock.packages.kv.version, "1.1.0");
+  assert.equal(lock.packages.kv.dependencies["@x/core"], "1.1.0");
+  assert.equal(check(root, {}, capture()), 0);
+});
+
+test("check - files git ignores are left out", () => {
+  const root = repo(workspace({
+    ".gitignore": "package-lock.json\n",
+    "package.json": { name: "@x/one", version: "2.0.0" },
+  }));
+  // a stale lock nobody commits
+  put(root, "package-lock.json", lockFor("@x/one", "1.0.0"));
+  assert.equal(check(root, {}, capture()), 0);
+});
